@@ -1,4 +1,4 @@
-module github.com/suapapa/gen_ai_lotto645
+module github.com/suapapa/genai_lotto645_tgbot
 
 go 1.24.2
 
@@ -6,6 +6,7 @@ require (
 	github.com/firebase/genkit/go v0.5.2
 	github.com/goccy/go-yaml v1.17.1
 	github.com/mymmrac/telego v1.0.2
+	github.com/schollz/progressbar/v3 v3.18.0
 )
 
 require (
@@ -51,7 +52,6 @@ require (
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/schollz/progressbar/v3 v3.18.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.59.0 // indirect
