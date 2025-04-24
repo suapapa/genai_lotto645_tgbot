@@ -12,16 +12,18 @@ import (
 )
 
 var (
+	flagConfigFile   string
 	flagBulkIndexCSV string
 )
 
 func main() {
+	flag.StringVar(&flagConfigFile, "c", ".config.yaml", "Path to the config file")
 	flag.StringVar(&flagBulkIndexCSV, "b", "", "CSV file to bulk index")
 	flag.Parse()
 
 	var cfg *Config
 	var err error
-	if cfg, err = loadConfig(".config.yaml"); err != nil {
+	if cfg, err = loadConfig(flagConfigFile); err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
