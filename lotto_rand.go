@@ -10,12 +10,12 @@ var (
 	r = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
-// 1~64 중 cnt 개의 로또 번호를 생성합니다.
+// 1~45 중 cnt 개의 로또 번호를 생성합니다.
 func generateLottoNumbers(cnt int) []int {
-	if cnt < 1 || cnt > 64 {
+	if cnt < 1 || cnt > 6 {
 		return nil
 	}
-	numbers := r.Perm(64)[:cnt]
+	numbers := r.Perm(45)[:cnt]
 	for i := range numbers {
 		numbers[i]++
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/firebase/genkit/go/ai"
@@ -112,6 +113,7 @@ func NewLottoAI(
 			if len(*s) != 6 {
 				return nil, fmt.Errorf("invalid winning numbers: %v", s)
 			}
+			sort.Ints(*s)
 			return *s, nil
 		},
 	)

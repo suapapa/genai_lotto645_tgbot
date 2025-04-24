@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -10,7 +11,14 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+var (
+	flagBulkIndexCSV string
+)
+
 func main() {
+	flag.StringVar(&flagBulkIndexCSV, "b", "", "CSV file to bulk index")
+	flag.Parse()
+
 	var cfg *Config
 	var err error
 	if cfg, err = loadConfig(".config.yaml"); err != nil {
@@ -26,18 +34,20 @@ func main() {
 		log.Fatalf("failed to create LottoAI: %v", err)
 	}
 
-	// 그간의 당첨 정보를 익덱싱 합니다
-	log.Println("Loading winning history...")
-	winHistory, err := loadWinningHistory("_data/lotto_history.csv")
-	if err != nil {
-		log.Fatalf("failed to load winning history: %v", err)
-	}
-	log.Printf("Indexing %d winning history...\n", len(winHistory))
-	bar := progressbar.Default(int64(len(winHistory)))
-	ctx := context.Background()
-	for _, w := range winHistory {
-		bar.Add(1)
-		lottoAI.IndexFlow.Run(ctx, w)
+	if flagBulkIndexCSV != "" {
+		// 그간의 당첨 정보를 익덱싱 합니다
+		log.Println("Loading winning history...")
+		winHistory, err := loadWinningHistory(flagBulkIndexCSV) // _data/lotto_history.csv
+		if err != nil {
+			log.Fatalf("failed to load winning history: %v", err)
+		}
+		log.Printf("Indexing %d winning history...\n", len(winHistory))
+		bar := progressbar.Default(int64(len(winHistory)))
+		ctx := context.Background()
+		for _, w := range winHistory {
+			bar.Add(1)
+			lottoAI.IndexFlow.Run(ctx, w)
+		}
 	}
 
 	// 텔레그렘 봇 시작
