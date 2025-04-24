@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/firebase/genkit/go/ai"
@@ -23,6 +22,10 @@ var (
 	embedderModelName = "bge-m3"
 )
 
+type Lucky struct {
+	Picks [][]int `json:"picks" yaml:"picks"`
+}
+
 type LottoAI struct {
 	// g           *genkit.Genkit
 	// wv          *weaviate.Weaviate
@@ -30,13 +33,13 @@ type LottoAI struct {
 	// indexer     ai.Indexer
 	// retriver    ai.Retriever
 	IndexFlow   *core.Flow[*Winning, any, struct{}]
-	PickNumFlow *core.Flow[struct{}, []int, struct{}]
+	PickNumFlow *core.Flow[int, Lucky, struct{}]
 }
 
 func NewLottoAI(
 	retrievePrompt string,
 	systemPrompt string,
-	userPrompt string,
+	userPromptFmt string,
 ) (*LottoAI, error) {
 	ctx := context.Background()
 
@@ -95,25 +98,25 @@ func NewLottoAI(
 
 	pickNumFlow := genkit.DefineFlow(
 		g, "pickNumFlow",
-		func(ctx context.Context, _ struct{}) ([]int, error) {
+		func(ctx context.Context, cnt int) (Lucky, error) {
 			resp, err := ai.Retrieve(ctx, retriver, ai.WithTextDocs(retrievePrompt))
 			if err != nil {
-				return nil, fmt.Errorf("failed to retrive winning: %w", err)
+				return Lucky{}, fmt.Errorf("failed to retrive winning: %w", err)
 			}
 
-			s, _, err := genkit.GenerateData[[]int](
+			s, _, err := genkit.GenerateData[Lucky](
 				ctx, g,
 				ai.WithDocs(resp.Documents...),
 				ai.WithSystem(systemPrompt),
-				ai.WithPrompt(userPrompt),
+				ai.WithPrompt(fmt.Sprintf(userPromptFmt, cnt)),
 			)
 			if err != nil {
-				return nil, fmt.Errorf("failed to generate winning: %w", err)
+				return *s, fmt.Errorf("failed to generate winning: %w", err)
 			}
-			if len(*s) != 6 {
-				return nil, fmt.Errorf("invalid winning numbers: %v", s)
+			if len((*s).Picks) != cnt {
+				return *s, fmt.Errorf("invalid winning numbers: %v", s)
 			}
-			sort.Ints(*s)
+			// sort.Ints(*s)
 			return *s, nil
 		},
 	)

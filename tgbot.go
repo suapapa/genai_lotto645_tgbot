@@ -42,10 +42,10 @@ func NewTelegramBot(lottoAI *LottoAI, apiToken string, chatIDs ...int64) (*Teleg
 }
 
 func (tb *TelegramBot) Close() {
-	tb.cancelF()
 	if err := tb.b.Close(context.Background()); err != nil {
 		fmt.Printf("failed to close bot: %v", err)
 	}
+	tb.cancelF()
 }
 
 func (tb *TelegramBot) Listen() {
@@ -86,61 +86,46 @@ func (tb *TelegramBot) Listen() {
 		// 	tb.chatIDs = append(tb.chatIDs, id)
 		// 	tb.sendMessage(id, "지금부터 매 주 로또 번호를 보내드리겠습니다.")
 		case "/ai", "/ailotto":
+			var cnt int
 			if len(slashArgs) > 0 {
+				var err error
 				cntStr := slashArgs[0]
-				cnt, err := strconv.Atoi(cntStr)
+				cnt, err = strconv.Atoi(cntStr)
 				if err != nil {
 					log.Printf("'%v %v'", cntStr, slashArgs)
 					tb.sendMessage(id, "로또 번호를 생성할 개수를 입력하세요.")
 					continue
 				}
-				if cnt > 50 {
-					tb.sendMessage(id, "한 번에 최대 50개까지 생성할 수 있습니다.")
-					cnt = 50
-				}
-
-				tb.sendMessage(id, fmt.Sprintf("초지능의 힘으로 로또 번호 %d 개를 생성합니다...", cnt))
-				var picks [][]int
-				for len(picks) < cnt {
-					nums, err := tb.ai.PickNumFlow.Run(context.Background(), struct{}{})
-					if err != nil {
-						tb.sendMessage(id, fmt.Sprintf("로또 번호 생성 실패: %v", err))
-						continue
-					}
-					for _, p := range picks {
-						if comapreInts(p, nums) {
-							continue
-						}
-					}
-					picks = append(picks, nums)
-				}
-				// show 5 numbers at a time
-				var result []string
-				for i, nums := range picks {
-					numStrs := make([]string, len(nums))
-					for j, num := range nums {
-						numStrs[j] = fmt.Sprintf("%02d", num)
-					}
-					result = append(result, strings.Join(numStrs, ", "))
-					if (i+1)%5 == 0 || i == cnt-1 {
-						tb.sendMessage(id, strings.Join(result, "\n"))
-						result = nil
-					}
-				}
-				tb.sendMessage(id, "생성완료")
 			} else {
-				tb.sendMessage(id, "초지능의 힘으로 로또 번호를 생성합니다...")
-				nums, err := tb.ai.PickNumFlow.Run(context.Background(), struct{}{})
-				if err != nil {
-					tb.sendMessage(id, fmt.Sprintf("로또 번호 생성 실패: %v", err))
-					continue
-				}
-				numStrs := make([]string, len(nums))
-				for i, num := range nums {
-					numStrs[i] = fmt.Sprintf("%02d", num)
-				}
-				tb.sendMessage(id, fmt.Sprintf("생성완료 : %s", strings.Join(numStrs, ", ")))
+				cnt = 1
 			}
+
+			if cnt > 50 {
+				tb.sendMessage(id, "한 번에 최대 50개까지 생성할 수 있습니다.")
+				cnt = 50
+			}
+
+			tb.sendMessage(id, fmt.Sprintf("초지능의 힘으로 로또 번호 %d 개를 생성합니다...", cnt))
+			lucky, err := tb.ai.PickNumFlow.Run(context.Background(), cnt)
+			if err != nil {
+				tb.sendMessage(id, fmt.Sprintf("로또 번호 생성 실패: %v", err))
+				continue
+			}
+
+			// show 5 numbers at a time
+			var result []string
+			for i, nums := range lucky.Picks {
+				numStrs := make([]string, len(nums))
+				for j, num := range nums {
+					numStrs[j] = fmt.Sprintf("%02d", num)
+				}
+				result = append(result, strings.Join(numStrs, ", "))
+				if (i+1)%5 == 0 || i == cnt-1 {
+					tb.sendMessage(id, strings.Join(result, "\n"))
+					result = nil
+				}
+			}
+			tb.sendMessage(id, "생성완료")
 
 		case "/lotto":
 			if len(slashArgs) > 0 {
@@ -192,18 +177,4 @@ func (tb *TelegramBot) sendMessage(id int64, text string) {
 	if _, err := tb.b.SendMessage(context.Background(), msg); err != nil {
 		fmt.Printf("failed to send message: %v", err)
 	}
-}
-
-// compareInts compares two slices of integers for equality.
-// a, b should be sorted.
-func comapreInts(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
