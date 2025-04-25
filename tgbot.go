@@ -17,6 +17,9 @@ type TelegramBot struct {
 	UpdateCh <-chan telego.Update
 	cancelF  context.CancelFunc
 	chatIDs  []int64
+
+	aiGenCnt   uint64
+	randGenCnt uint64
 }
 
 func NewTelegramBot(lottoAI *LottoAI, apiToken string, chatIDs ...int64) (*TelegramBot, error) {
@@ -71,6 +74,7 @@ func (tb *TelegramBot) Listen() {
 			slashArgs = nil
 		}
 
+		username := update.Message.Chat.Username
 		id := update.Message.Chat.ID
 		switch slashCmd {
 		case "/start":
@@ -125,48 +129,49 @@ func (tb *TelegramBot) Listen() {
 					result = nil
 				}
 			}
+			tb.aiGenCnt += uint64(cnt)
+			log.Printf("%s 의 요청으로 %d 개의 로또 번호를 초지능으로 생성했습니다.", username, cnt)
 			tb.sendMessage(id, "생성완료")
 
-		case "/lotto":
+		case "/rand", "/lotto":
+			var cnt int
 			if len(slashArgs) > 0 {
+				var err error
 				cntStr := slashArgs[0]
-				cnt, err := strconv.Atoi(cntStr)
+				cnt, err = strconv.Atoi(cntStr)
 				if err != nil {
 					log.Printf("'%v %v'", cntStr, slashArgs)
 					tb.sendMessage(id, "로또 번호를 생성할 개수를 입력하세요.")
 					continue
 				}
-				if cnt > 50 {
-					tb.sendMessage(id, "한 번에 최대 50개까지 생성할 수 있습니다.")
-					cnt = 50
-				}
-
-				tb.sendMessage(id, fmt.Sprintf("로또 번호 %d 개를 생성합니다...", cnt))
-				var result []string
-				for i := 0; i < int(cnt); i++ {
-					nums := generateLottoNumbers(6)
-					numStrs := make([]string, len(nums))
-					for j, num := range nums {
-						numStrs[j] = fmt.Sprintf("%02d", num)
-					}
-					result = append(result, strings.Join(numStrs, ", "))
-					if (i+1)%5 == 0 || i == cnt-1 {
-						tb.sendMessage(id, strings.Join(result, "\n"))
-						result = nil
-					}
-				}
-				tb.sendMessage(id, "생성완료")
 			} else {
-				tb.sendMessage(id, "로또 번호를 생성합니다...")
+				cnt = 1
+			}
+
+			tb.sendMessage(id, fmt.Sprintf("로또 번호 %d 개를 생성합니다...", cnt))
+			var result []string
+			for i := 0; i < int(cnt); i++ {
 				nums := generateLottoNumbers(6)
 				numStrs := make([]string, len(nums))
-				for i, num := range nums {
-					numStrs[i] = fmt.Sprintf("%02d", num)
+				for j, num := range nums {
+					numStrs[j] = fmt.Sprintf("%02d", num)
 				}
-				tb.sendMessage(id, fmt.Sprintf("생성완료 : %s", strings.Join(numStrs, ", ")))
+				result = append(result, strings.Join(numStrs, ", "))
+				if (i+1)%5 == 0 || i == cnt-1 {
+					tb.sendMessage(id, strings.Join(result, "\n"))
+					result = nil
+				}
 			}
+			tb.randGenCnt += uint64(cnt)
+			log.Printf("%s 의 요청으로 %d 개의 로또 번호를 생성했습니다.", username, cnt)
+			tb.sendMessage(id, "생성완료")
+
+		case "/stat":
+			tb.sendMessage(id, fmt.Sprintf("AI 생성 횟수: %d\n랜덤 생성 횟수: %d", tb.aiGenCnt, tb.randGenCnt))
+
 		default:
-			tb.sendMessage(id, fmt.Sprintf("몰-루 : '%s'", update.Message.Text))
+			// tb.sendMessage(id, fmt.Sprintf("몰-루 : '%s'", update.Message.Text))
+			tb.sendMessage(id, "Usage:\n/ai [count] - AI 로또 번호 생성\n/rand [count] - 랜덤 로또 번호 생성\n/stat - 통계 확인")
 		}
 	}
 }

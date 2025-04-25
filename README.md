@@ -1,6 +1,6 @@
-# GenAI Lotto 6/45
+# GenAI Lotto 6/45 Telegram bot
 
-![logo](_data/gopher_prey_4_lotto_640.webp)
+![logo](_data/gopher_prey_256.webp)
 
 A Telegram Bot to Pick Lotto 6/45 numbers powered by gen-AI RAG tech.
 
