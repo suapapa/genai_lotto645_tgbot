@@ -92,8 +92,9 @@ func (tb *TelegramBot) Listen() {
 
 func (tb *TelegramBot) Do(id int64, slashCmd string, slashArgs []string) error {
 	switch slashCmd {
-	// case "/start":
-	// 	tb.sendMessage(update.Message.Chat.ID, "pong")
+	case "/start":
+		log.Printf("start cmd received from %d", id)
+		// tb.sendMessage(update.Message.Chat.ID, "pong")
 	case "/ai", "/ailotto":
 		var cnt int
 		if len(slashArgs) > 0 {
