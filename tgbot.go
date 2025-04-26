@@ -57,36 +57,39 @@ func (tb *TelegramBot) Listen() {
 			continue
 		}
 
-		var prompt string
-		var slashArgs []string
-		if strings.HasPrefix(update.Message.Text, "/") {
-			slashArgs = strings.Split(update.Message.Text, " ")
-			if len(slashArgs) > 1 {
-				prompt = slashArgs[0]
-				slashArgs = slashArgs[1:]
-			} else if len(slashArgs) == 1 {
-				prompt = slashArgs[0]
+		go func() {
+			var prompt string
+			var slashArgs []string
+			if strings.HasPrefix(update.Message.Text, "/") {
+				slashArgs = strings.Split(update.Message.Text, " ")
+				if len(slashArgs) > 1 {
+					prompt = slashArgs[0]
+					slashArgs = slashArgs[1:]
+				} else if len(slashArgs) == 1 {
+					prompt = slashArgs[0]
+				}
+			} else {
+				prompt = update.Message.Text
 			}
-		} else {
-			prompt = update.Message.Text
-		}
 
-		id := update.Message.Chat.ID
-		if strings.HasPrefix(prompt, "/") {
-			err := tb.Do(id, prompt, slashArgs)
-			if err != nil {
-				tb.sendMessage(id, fmt.Sprintf("Error: %v", err))
-			}
-		} else {
-			log.Printf("thinking prompt: %s...", prompt)
-			cmd, err := tb.ai.ChatbotFlow.Run(context.Background(), prompt)
-			if err != nil {
-				tb.sendMessage(id, fmt.Sprintf("Error: %v", err))
-			}
-			log.Printf("got cmd: %+v", cmd)
+			id := update.Message.Chat.ID
+			if strings.HasPrefix(prompt, "/") {
+				if err := tb.Do(id, prompt, slashArgs); err != nil {
+					tb.sendMessage(id, fmt.Sprintf("Error: %v", err))
+				}
+			} else {
+				log.Printf("thinking prompt: %s...", prompt)
+				cmd, err := tb.ai.ChatbotFlow.Run(context.Background(), prompt)
+				if err != nil {
+					tb.sendMessage(id, fmt.Sprintf("Error: %v", err))
+				}
+				log.Printf("got cmd: %+v", cmd)
 
-			tb.Do(id, cmd.Action, cmd.Args)
-		}
+				if err := tb.Do(id, cmd.Action, cmd.Args); err != nil {
+					tb.sendMessage(id, fmt.Sprintf("Error: %v", err))
+				}
+			}
+		}()
 	}
 }
 
@@ -116,7 +119,7 @@ func (tb *TelegramBot) Do(id int64, slashCmd string, slashArgs []string) error {
 		tb.sendMessage(id, fmt.Sprintf("초지능의 힘으로 로또 번호 %d 개를 생성합니다...", cnt))
 		lucky, err := tb.ai.PickLuckyNumsFlow.Run(context.Background(), cnt)
 		if err != nil {
-			fmt.Errorf("failed to generate lucky numbers: %v", err)
+			return fmt.Errorf("failed to generate lucky numbers: %v", err)
 		}
 
 		// show 5 numbers at a time

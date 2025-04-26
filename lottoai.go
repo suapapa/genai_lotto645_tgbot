@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core"
@@ -30,6 +31,8 @@ type LottoRAGAI struct {
 	IndexWinningHistoryFlow *core.Flow[*Winning, any, struct{}]
 	PickLuckyNumsFlow       *core.Flow[int, Lucky, struct{}]
 	ChatbotFlow             *core.Flow[string, Cmd, struct{}] // Input: user message, Output: bot action (rand, ai, hello, help)
+
+	mu sync.Mutex
 }
 
 type Cmd struct {
@@ -78,9 +81,14 @@ func NewLottoRAGAI(
 		return nil, fmt.Errorf("failed to define indexer and retriever: %w", err)
 	}
 
+	ret := &LottoRAGAI{}
+
 	indexFlow := genkit.DefineFlow(
 		g, "indexWinningHistoryFlow",
 		func(ctx context.Context, w *Winning) (any, error) {
+			ret.mu.Lock()
+			defer ret.mu.Unlock()
+
 			b, err := yaml.Marshal(w)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal winning: %w", err)
@@ -100,6 +108,9 @@ func NewLottoRAGAI(
 	pickNumFlow := genkit.DefineFlow(
 		g, "pickLuckyNumsFlow",
 		func(ctx context.Context, cnt int) (Lucky, error) {
+			ret.mu.Lock()
+			defer ret.mu.Unlock()
+
 			resp, err := ai.Retrieve(ctx, winHistoryRetriver, ai.WithTextDocs(retrievePrompt))
 			if err != nil {
 				return Lucky{}, fmt.Errorf("failed to retrive winning: %w", err)
@@ -125,6 +136,9 @@ func NewLottoRAGAI(
 	chatbotFlow := genkit.DefineFlow(
 		g, "chatbotFlow",
 		func(ctx context.Context, msg string) (Cmd, error) {
+			ret.mu.Lock()
+			defer ret.mu.Unlock()
+
 			systemPrompt := `너의 이름은 김점지야.
 너의 임무는 사용자의 채팅 메시지를 분석하여 적절한 행동(Action)을 선택하는 것이야.
 
@@ -161,11 +175,9 @@ func NewLottoRAGAI(
 		},
 	)
 
-	ret := &LottoRAGAI{
-		IndexWinningHistoryFlow: indexFlow,
-		PickLuckyNumsFlow:       pickNumFlow,
-		ChatbotFlow:             chatbotFlow,
-	}
+	ret.IndexWinningHistoryFlow = indexFlow
+	ret.PickLuckyNumsFlow = pickNumFlow
+	ret.ChatbotFlow = chatbotFlow
 
 	return ret, nil
 }
