@@ -36,15 +36,18 @@ func loadConfig(fp, pp string) (*Config, error) {
 		return nil, fmt.Errorf("missing Telegram chat IDs")
 	}
 
+	pt := &Prompt{}
 	p, err := os.Open(pp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open prompt file: %w", err)
 	}
 	defer p.Close()
 
-	if err := yaml.NewDecoder(p).Decode(&c.Prompt); err != nil {
+	if err := yaml.NewDecoder(p).Decode(pt); err != nil {
 		return nil, fmt.Errorf("failed to decode prompt file: %w", err)
 	}
+
+	c.Prompt = pt
 
 	return c, nil
 }
