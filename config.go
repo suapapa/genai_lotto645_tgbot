@@ -10,16 +10,16 @@ import (
 type Prompt struct {
 	Reterieve string `yaml:"retrieve"`
 	System    string `yaml:"system"`
-	User      string `yaml:"user"`
+	User      string `yaml:"user_fmt"`
 }
 
 type Config struct {
 	TelegramAPIToken string  `yaml:"tg_api_token"`
 	ChatIDs          []int64 `yaml:"tg_chat_ids"`
-	Prompt           *Prompt `yaml:"prompt"`
+	Prompt           *Prompt `yaml:"-"`
 }
 
-func loadConfig(fp string) (*Config, error) {
+func loadConfig(fp, pp string) (*Config, error) {
 	c := &Config{}
 	f, err := os.Open(fp)
 	if err != nil {
@@ -34,6 +34,16 @@ func loadConfig(fp string) (*Config, error) {
 	}
 	if len(c.ChatIDs) == 0 {
 		return nil, fmt.Errorf("missing Telegram chat IDs")
+	}
+
+	p, err := os.Open(pp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open prompt file: %w", err)
+	}
+	defer p.Close()
+
+	if err := yaml.NewDecoder(p).Decode(&c.Prompt); err != nil {
+		return nil, fmt.Errorf("failed to decode prompt file: %w", err)
 	}
 
 	return c, nil

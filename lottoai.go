@@ -26,21 +26,17 @@ type Lucky struct {
 	Picks [][]int `json:"picks" yaml:"picks"`
 }
 
-type LottoAI struct {
-	// g           *genkit.Genkit
-	// wv          *weaviate.Weaviate
-	// o           *ollama.Ollama
-	// indexer     ai.Indexer
-	// retriver    ai.Retriever
-	IndexFlow   *core.Flow[*Winning, any, struct{}]
-	PickNumFlow *core.Flow[int, Lucky, struct{}]
+type LottoRAGAI struct {
+	IndexWinningHistoryFlow *core.Flow[*Winning, any, struct{}]
+	PickLuckyNumsFlow       *core.Flow[int, Lucky, struct{}]
+	ChatbotFlow             *core.Flow[string, string, struct{}] // Input: user message, Output: bot action (rand, ai, hello, help)
 }
 
-func NewLottoAI(
+func NewLottoRAGAI(
 	retrievePrompt string,
 	systemPrompt string,
 	userPromptFmt string,
-) (*LottoAI, error) {
+) (*LottoRAGAI, error) {
 	ctx := context.Background()
 
 	wvSchema, wvAddr := toSchemaAndAddr(weaviateAddr)
@@ -69,7 +65,7 @@ func NewLottoAI(
 		return nil, fmt.Errorf("failed to initialize Genkit: %w", err)
 	}
 
-	indexer, retriver, err := weaviate.DefineIndexerAndRetriever(ctx, g, weaviate.ClassConfig{
+	winHistoryIndexer, winHistoryRetriver, err := weaviate.DefineIndexerAndRetriever(ctx, g, weaviate.ClassConfig{
 		Class:    "WinningHistory",
 		Embedder: o.DefineEmbedder(g, o.ServerAddress, embedderModelName),
 	})
@@ -78,7 +74,7 @@ func NewLottoAI(
 	}
 
 	indexFlow := genkit.DefineFlow(
-		g, "indexWinningFlow",
+		g, "indexWinningHistoryFlow",
 		func(ctx context.Context, w *Winning) (any, error) {
 			b, err := yaml.Marshal(w)
 			if err != nil {
@@ -86,7 +82,7 @@ func NewLottoAI(
 			}
 			// log.Println("indexing", string(b))
 			doc := ai.DocumentFromText(string(b), nil)
-			err = ai.Index(ctx, indexer,
+			err = ai.Index(ctx, winHistoryIndexer,
 				ai.WithDocs(doc),
 			)
 			if err != nil {
@@ -97,9 +93,9 @@ func NewLottoAI(
 	)
 
 	pickNumFlow := genkit.DefineFlow(
-		g, "pickNumFlow",
+		g, "pickLuckyNumsFlow",
 		func(ctx context.Context, cnt int) (Lucky, error) {
-			resp, err := ai.Retrieve(ctx, retriver, ai.WithTextDocs(retrievePrompt))
+			resp, err := ai.Retrieve(ctx, winHistoryRetriver, ai.WithTextDocs(retrievePrompt))
 			if err != nil {
 				return Lucky{}, fmt.Errorf("failed to retrive winning: %w", err)
 			}
@@ -121,9 +117,9 @@ func NewLottoAI(
 		},
 	)
 
-	ret := &LottoAI{
-		IndexFlow:   indexFlow,
-		PickNumFlow: pickNumFlow,
+	ret := &LottoRAGAI{
+		IndexWinningHistoryFlow: indexFlow,
+		PickLuckyNumsFlow:       pickNumFlow,
 	}
 
 	return ret, nil

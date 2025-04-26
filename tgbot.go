@@ -12,7 +12,7 @@ import (
 )
 
 type TelegramBot struct {
-	ai       *LottoAI
+	ai       *LottoRAGAI
 	b        *telego.Bot
 	UpdateCh <-chan telego.Update
 	cancelF  context.CancelFunc
@@ -22,7 +22,7 @@ type TelegramBot struct {
 	randGenCnt uint64
 }
 
-func NewTelegramBot(lottoAI *LottoAI, apiToken string, chatIDs ...int64) (*TelegramBot, error) {
+func NewTelegramBot(lottoAI *LottoRAGAI, apiToken string, chatIDs ...int64) (*TelegramBot, error) {
 	b, err := telego.NewBot(apiToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Telegram bot: %w", err)
@@ -74,7 +74,7 @@ func (tb *TelegramBot) Listen() {
 			slashArgs = nil
 		}
 
-		username := update.Message.Chat.Username
+		// username := update.Message.Chat.Username
 		id := update.Message.Chat.ID
 		switch slashCmd {
 		case "/start":
@@ -110,7 +110,7 @@ func (tb *TelegramBot) Listen() {
 			}
 
 			tb.sendMessage(id, fmt.Sprintf("초지능의 힘으로 로또 번호 %d 개를 생성합니다...", cnt))
-			lucky, err := tb.ai.PickNumFlow.Run(context.Background(), cnt)
+			lucky, err := tb.ai.PickLuckyNumsFlow.Run(context.Background(), cnt)
 			if err != nil {
 				tb.sendMessage(id, fmt.Sprintf("로또 번호 생성 실패: %v", err))
 				continue
@@ -130,7 +130,7 @@ func (tb *TelegramBot) Listen() {
 				}
 			}
 			tb.aiGenCnt += uint64(cnt)
-			log.Printf("%s 의 요청으로 %d 개의 로또 번호를 초지능으로 생성했습니다.", username, cnt)
+			log.Printf("%d 의 요청으로 %d 개의 로또 번호를 초지능으로 생성했습니다.", id, cnt)
 			tb.sendMessage(id, "생성완료")
 
 		case "/rand", "/lotto":
@@ -163,7 +163,7 @@ func (tb *TelegramBot) Listen() {
 				}
 			}
 			tb.randGenCnt += uint64(cnt)
-			log.Printf("%s 의 요청으로 %d 개의 로또 번호를 생성했습니다.", username, cnt)
+			log.Printf("%d 의 요청으로 %d 개의 로또 번호를 생성했습니다.", id, cnt)
 			tb.sendMessage(id, "생성완료")
 
 		case "/stat":

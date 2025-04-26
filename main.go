@@ -13,21 +13,23 @@ import (
 
 var (
 	flagConfigFile   string
+	flagPromptFile   string
 	flagBulkIndexCSV string
 )
 
 func main() {
 	flag.StringVar(&flagConfigFile, "c", ".config.yaml", "Path to the config file")
+	flag.StringVar(&flagPromptFile, "p", "prompt.yaml", "Path to the prompt file")
 	flag.StringVar(&flagBulkIndexCSV, "b", "", "CSV file to bulk index")
 	flag.Parse()
 
 	var cfg *Config
 	var err error
-	if cfg, err = loadConfig(flagConfigFile); err != nil {
+	if cfg, err = loadConfig(flagConfigFile, flagPromptFile); err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	lottoAI, err := NewLottoAI(
+	lottoAI, err := NewLottoRAGAI(
 		cfg.Prompt.Reterieve,
 		cfg.Prompt.System,
 		cfg.Prompt.User,
@@ -48,7 +50,7 @@ func main() {
 		ctx := context.Background()
 		for _, w := range winHistory {
 			bar.Add(1)
-			lottoAI.IndexFlow.Run(ctx, w)
+			lottoAI.IndexWinningHistoryFlow.Run(ctx, w)
 		}
 	}
 
