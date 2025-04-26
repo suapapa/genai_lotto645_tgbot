@@ -2,9 +2,9 @@
 
 ![logo](_data/gopher_prey_256.webp)
 
-A Telegram Bot to Pick Lotto 6/45 numbers powered by gen-AI RAG tech.
+A Telegram Bot for selecting Lotto 6/45 numbers, enhanced by Gen-AI RAG technology.
 
-> !! Only for fun purpose !!
+> **⚠️ Note: This bot is intended for entertainment purposes only.**
 
 ## Telegram Bot Usage Example
 

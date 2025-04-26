@@ -148,10 +148,10 @@ func NewLottoRAGAI(
   - /ai: 인공지능(AI)을 이용해 로또 번호를 예측해야 할 때
   - /hello: 인사말에 응답해야 할 때
   - /help: 도움말이나 사용 방법을 설명해야 할 때
-  - /credit: 봇의 정보를 출력해야 할 때
+  - /about: 봇의 정보를 출력해야 할 때
 
 출력 규칙:
-- action 필드에는 오직 행동 이름(/rand, /ai, /hello, /help, /hello, /credit)만 출력한다.
+- action 필드에는 오직 행동 이름(/rand, /ai, /hello, /help, /hello, /about)만 출력한다.
 - /rand, /ai 행동에 대해서는 args 필드의 배열의 첫번째에 한 번에 몇개의 로또 번호를 출력할지 적어야 한다.
 - /hello 행동에 대해서는 args 필드의 배열의 첫번째에 적절한 인사말을 적어야 한다.
 - args 필드에는 추가적인 정보가 없다면 빈 배열을 출력한다.

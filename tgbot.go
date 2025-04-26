@@ -95,9 +95,6 @@ func (tb *TelegramBot) Listen() {
 
 func (tb *TelegramBot) Do(id int64, slashCmd string, slashArgs []string) error {
 	switch slashCmd {
-	case "/start":
-		log.Printf("start cmd received from %d", id)
-		// tb.sendMessage(update.Message.Chat.ID, "pong")
 	case "/ai", "/ailotto":
 		var cnt int
 		if len(slashArgs) > 0 {
@@ -185,11 +182,10 @@ func (tb *TelegramBot) Do(id int64, slashCmd string, slashArgs []string) error {
 	case "/help":
 		tb.sendMessage(id, "Usage:\n/ai [count] - AI 로또 번호 생성\n/rand [count] - 랜덤 로또 번호 생성\n/stat - 통계 확인")
 
-	case "/credit":
-		tb.sendMessage(id, `Credit:
-내 이름은 김점지 봇.
-Go 언어로 작성된 RAG 기반의 로또 번호 생성 봇이야.
-내가 만들어진 내용은 아래의 블로그 링크에 있어.
+	case "/start", "/about":
+		tb.sendMessage(id, `내 이름은 김점지.
+GenAI와 RAG 기술을 활용한 프리미엄 로또 번호 생성 봇입니다.
+자세한 내용은 아래 링크에서 확인할 수 있습니다.
 https://homin.dev/blog/post/20250425_genai_lotto_tg_bot/`)
 
 	default:
