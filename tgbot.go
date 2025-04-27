@@ -167,7 +167,7 @@ func (tb *TelegramBot) Do(id int64, slashCmd string, slashArgs []string) error {
 		log.Printf("%d 의 요청으로 %d 개의 로또 번호를 생성했습니다.", id, cnt)
 		tb.sendMessage(id, "생성완료")
 
-	case "/hello":
+	case "/smallchat":
 		var reply string
 		if len(slashArgs) > 0 {
 			reply = strings.Join(slashArgs, "\n")

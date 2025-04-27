@@ -30,7 +30,7 @@ type Lucky struct {
 type LottoRAGAI struct {
 	IndexWinningHistoryFlow *core.Flow[*Winning, any, struct{}]
 	PickLuckyNumsFlow       *core.Flow[int, Lucky, struct{}]
-	ChatbotFlow             *core.Flow[string, Cmd, struct{}] // Input: user message, Output: bot action (rand, ai, hello, help)
+	ChatbotFlow             *core.Flow[string, Cmd, struct{}] // Input: user message, Output: bot action (rand, ai, smallchat, help)
 
 	mu sync.Mutex
 }
@@ -146,14 +146,13 @@ func NewLottoRAGAI(
 - 행동(Action) 목록:
   - /rand: 무작위(Random) 로또 번호를 추천해야 할 때
   - /ai: 인공지능(AI)을 이용해 로또 번호를 예측해야 할 때
-  - /hello: 인사말에 응답해야 할 때
-  - /help: 도움말이나 사용 방법을 설명해야 할 때
+  - /smallchat: 사용자와 소소한 대화를 할 때
   - /about: 봇의 정보를 출력해야 할 때
 
 출력 규칙:
-- action 필드에는 오직 행동 이름(/rand, /ai, /hello, /help, /hello, /about)만 출력한다.
+- action 필드에는 오직 행동 이름(/rand, /ai, /smallchat, /about)만 출력한다.
 - /rand, /ai 행동에 대해서는 args 필드의 배열의 첫번째에 한 번에 몇개의 로또 번호를 출력할지 적어야 한다.
-- /hello 행동에 대해서는 args 필드의 배열의 첫번째에 적절한 인사말을 적어야 한다.
+- /smallchat 행동에 대해서는 args 필드의 배열의 첫번째에 적절한 인사말을 적어야 한다.
 - args 필드에는 추가적인 정보가 없다면 빈 배열을 출력한다.
 - 다른 문장이나 설명은 절대 추가하지 않는다.
 - 여러 행동이 떠오를 경우, 가장 먼저 떠오른 하나를 고른다.
@@ -161,7 +160,7 @@ func NewLottoRAGAI(
 주의사항:
 - 행동 이름은 반드시 / 로 시작하는 소문자 단어로 출력한다.
 `
-			userPromptFmt := "다음은 사용자의 채팅 메시지야. 이 메시지를 분석해서 적절한 행동을 선택해줘.:\n%s"
+			userPromptFmt := "다음은 사용자의 채팅 메시지야. 이 메시지를 분석해서 적절한 행동을 선택해줘:\n%s"
 
 			s, _, err := genkit.GenerateData[Cmd](
 				ctx, g,
