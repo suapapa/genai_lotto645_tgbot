@@ -1,10 +1,8 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 
@@ -12,15 +10,7 @@ import (
 	"github.com/firebase/genkit/go/core"
 	"github.com/firebase/genkit/go/genkit"
 	"github.com/firebase/genkit/go/plugins/googlegenai"
-	"github.com/firebase/genkit/go/plugins/ollama"
-	"github.com/firebase/genkit/go/plugins/weaviate"
-	"github.com/goccy/go-yaml"
-)
-
-var (
-	ollamaAddr        = cmp.Or(os.Getenv("OLLAMA_ADDR"), "http://localhost:11434")
-	weaviateAddr      = cmp.Or(os.Getenv("WV_ADDR"), "http://localhost:9035")
-	embedderModelName = "bge-m3"
+	ragkit "github.com/suapapa/go_ragkit"
 )
 
 type Lucky struct {
@@ -28,6 +18,8 @@ type Lucky struct {
 }
 
 type LottoRAGAI struct {
+	vectorEmbedder ragkit.Vectorizer
+
 	IndexWinningHistoryFlow *core.Flow[*Winning, any, struct{}]
 	PickLuckyNumsFlow       *core.Flow[int, Lucky, struct{}]
 	ChatbotFlow             *core.Flow[string, Cmd, struct{}] // Input: user message, Output: bot action (rand, ai, smallchat, help)
@@ -47,24 +39,12 @@ func NewLottoRAGAI(
 ) (*LottoRAGAI, error) {
 	ctx := context.Background()
 
-	wvSchema, wvAddr := toSchemaAndAddr(weaviateAddr)
-	wv := &weaviate.Weaviate{
-		Scheme: wvSchema,
-		Addr:   wvAddr,
-	}
-
-	o := &ollama.Ollama{
-		ServerAddress: ollamaAddr,
-	}
-
 	// Initialize a Genkit instance.
 	g, err := genkit.Init(ctx,
 		// Install the Google AI plugin which provides Gemini models.
 		genkit.WithPlugins(
 			&googlegenai.GoogleAI{},
 			// &googlegenai.VertexAI{},
-			o,
-			wv,
 		),
 		// Set the default model to use for generate calls.
 		genkit.WithDefaultModel("googleai/gemini-2.0-flash"),
@@ -73,15 +53,21 @@ func NewLottoRAGAI(
 		return nil, fmt.Errorf("failed to initialize Genkit: %w", err)
 	}
 
-	winHistoryIndexer, winHistoryRetriver, err := weaviate.DefineIndexerAndRetriever(ctx, g, weaviate.ClassConfig{
-		Class:    "WinningHistory",
-		Embedder: o.DefineEmbedder(g, o.ServerAddress, embedderModelName),
-	})
+	// winHistoryIndexer, winHistoryRetriver, err := weaviate.DefineIndexerAndRetriever(ctx, g, weaviate.ClassConfig{
+	// 	Class:    "WinningHistory",
+	// 	Embedder: o.DefineEmbedder(g, o.ServerAddress, embedderModelName),
+	// })
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to define indexer and retriever: %w", err)
+	// }
+	vectorizer, err := NewWeaviateVectorizer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to define indexer and retriever: %w", err)
 	}
 
-	ret := &LottoRAGAI{}
+	ret := &LottoRAGAI{
+		vectorEmbedder: vectorizer,
+	}
 
 	indexFlow := genkit.DefineFlow(
 		g, "indexWinningHistoryFlow",
@@ -89,18 +75,34 @@ func NewLottoRAGAI(
 			ret.mu.Lock()
 			defer ret.mu.Unlock()
 
-			b, err := yaml.Marshal(w)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal winning: %w", err)
-			}
+			// b, err := yaml.Marshal(w)
+			// if err != nil {
+			// 	return nil, fmt.Errorf("failed to marshal winning: %w", err)
+			// }
 			// log.Println("indexing", string(b))
-			doc := ai.DocumentFromText(string(b), nil)
-			err = ai.Index(ctx, winHistoryIndexer,
-				ai.WithDocs(doc),
-			)
+			// doc := ai.DocumentFromText(string(b), nil)
+			// err = ai.Index(ctx, winHistoryIndexer,
+			// 	ai.WithDocs(doc),
+			// )
+			// if err != nil {
+			// 	return nil, fmt.Errorf("failed to index winning: %w", err)
+			// }
+
+			doc := ragkit.Document{
+				Text: fmt.Sprintf("%v + %d", w.Numbers, w.Bonus),
+				Metadata: map[string]any{
+					"issue_no":     w.IssueNo,
+					"first_prize":  w.FirstPrize,
+					"first_count":  w.FirstCount,
+					"second_prize": w.SecondPrize,
+					"second_count": w.SecondCount,
+				},
+			}
+			_, err = ret.vectorEmbedder.Index(ctx, doc)
 			if err != nil {
 				return nil, fmt.Errorf("failed to index winning: %w", err)
 			}
+
 			return nil, nil
 		},
 	)
@@ -111,14 +113,29 @@ func NewLottoRAGAI(
 			ret.mu.Lock()
 			defer ret.mu.Unlock()
 
-			resp, err := ai.Retrieve(ctx, winHistoryRetriver, ai.WithTextDocs(retrievePrompt))
+			// resp, err := ai.Retrieve(ctx, winHistoryRetriver, ai.WithTextDocs(retrievePrompt))
+			// if err != nil {
+			// 	return Lucky{}, fmt.Errorf("failed to retrive winning: %w", err)
+			// }
+
+			retrieves, err := ret.vectorEmbedder.RetrieveText(ctx, retrievePrompt, 50)
 			if err != nil {
-				return Lucky{}, fmt.Errorf("failed to retrive winning: %w", err)
+				return Lucky{}, fmt.Errorf("failed to retrieve winning: %w", err)
+			}
+
+			docs := make([]*ai.Document, len(retrieves))
+			for i, r := range retrieves {
+				docs[i] = &ai.Document{
+					Content: []*ai.Part{
+						ai.NewTextPart(r.Text),
+					},
+					Metadata: r.Metadata,
+				}
 			}
 
 			s, _, err := genkit.GenerateData[Lucky](
 				ctx, g,
-				ai.WithDocs(resp.Documents...),
+				ai.WithDocs(docs...),
 				ai.WithSystem(systemPrompt),
 				ai.WithPrompt(fmt.Sprintf(userPromptFmt, cnt)),
 			)
