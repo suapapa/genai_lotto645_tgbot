@@ -50,7 +50,10 @@ func main() {
 		ctx := context.Background()
 		for _, w := range winHistory {
 			bar.Add(1)
-			lottoAI.IndexWinningHistoryFlow.Run(ctx, w)
+			_, err := lottoAI.IndexWinningHistoryFlow.Run(ctx, w)
+			if err != nil {
+				log.Fatalf("failed to index winning history: %v", err)
+			}
 		}
 	}
 

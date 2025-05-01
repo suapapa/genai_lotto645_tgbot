@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
@@ -18,8 +20,6 @@ type Lucky struct {
 }
 
 type LottoRAGAI struct {
-	vectorEmbedder ragkit.Vectorizer
-
 	IndexWinningHistoryFlow *core.Flow[*Winning, any, struct{}]
 	PickLuckyNumsFlow       *core.Flow[int, Lucky, struct{}]
 	ChatbotFlow             *core.Flow[string, Cmd, struct{}] // Input: user message, Output: bot action (rand, ai, smallchat, help)
@@ -53,21 +53,13 @@ func NewLottoRAGAI(
 		return nil, fmt.Errorf("failed to initialize Genkit: %w", err)
 	}
 
-	// winHistoryIndexer, winHistoryRetriver, err := weaviate.DefineIndexerAndRetriever(ctx, g, weaviate.ClassConfig{
-	// 	Class:    "WinningHistory",
-	// 	Embedder: o.DefineEmbedder(g, o.ServerAddress, embedderModelName),
-	// })
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to define indexer and retriever: %w", err)
-	// }
 	vectorizer, err := NewWeaviateVectorizer()
 	if err != nil {
 		return nil, fmt.Errorf("failed to define indexer and retriever: %w", err)
 	}
+	log.Println(vectorizer.String(), "initialized")
 
-	ret := &LottoRAGAI{
-		vectorEmbedder: vectorizer,
-	}
+	ret := &LottoRAGAI{}
 
 	indexFlow := genkit.DefineFlow(
 		g, "indexWinningHistoryFlow",
@@ -75,21 +67,23 @@ func NewLottoRAGAI(
 			ret.mu.Lock()
 			defer ret.mu.Unlock()
 
-			// b, err := yaml.Marshal(w)
-			// if err != nil {
-			// 	return nil, fmt.Errorf("failed to marshal winning: %w", err)
-			// }
-			// log.Println("indexing", string(b))
-			// doc := ai.DocumentFromText(string(b), nil)
-			// err = ai.Index(ctx, winHistoryIndexer,
-			// 	ai.WithDocs(doc),
-			// )
-			// if err != nil {
-			// 	return nil, fmt.Errorf("failed to index winning: %w", err)
-			// }
+			nums := append(w.Numbers, w.Bonus)
+			b, err := json.Marshal(nums)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal winning: %w", err)
+			}
+			text := string(b)
+			textID := ragkit.GenerateID(text)
+			if exists, err := vectorizer.Exists(ctx, textID); err != nil {
+				return nil, fmt.Errorf("failed to check if winning exists: %w", err)
+			} else if exists {
+				log.Println("winning already exists", textID)
+				return nil, nil
+			}
 
 			doc := ragkit.Document{
-				Text: fmt.Sprintf("%v + %d", w.Numbers, w.Bonus),
+				ID:   textID,
+				Text: text,
 				Metadata: map[string]any{
 					"issue_no":     w.IssueNo,
 					"first_prize":  w.FirstPrize,
@@ -98,10 +92,11 @@ func NewLottoRAGAI(
 					"second_count": w.SecondCount,
 				},
 			}
-			_, err = ret.vectorEmbedder.Index(ctx, doc)
+			_, err = vectorizer.Index(ctx, doc)
 			if err != nil {
 				return nil, fmt.Errorf("failed to index winning: %w", err)
 			}
+			// log.Printf("indexed: %v", ids)
 
 			return nil, nil
 		},
@@ -118,9 +113,15 @@ func NewLottoRAGAI(
 			// 	return Lucky{}, fmt.Errorf("failed to retrive winning: %w", err)
 			// }
 
-			retrieves, err := ret.vectorEmbedder.RetrieveText(ctx, retrievePrompt, 50)
+			log.Println("retrieving", retrievePrompt)
+			retrieves, err := vectorizer.RetrieveText(ctx, retrievePrompt, cnt+50)
 			if err != nil {
 				return Lucky{}, fmt.Errorf("failed to retrieve winning: %w", err)
+			}
+
+			log.Println("retrieved", len(retrieves))
+			for _, r := range retrieves {
+				log.Println(r.Text, r.Metadata)
 			}
 
 			docs := make([]*ai.Document, len(retrieves))
@@ -173,11 +174,12 @@ func NewLottoRAGAI(
 - args 필드에는 추가적인 정보가 없다면 빈 배열을 출력한다.
 - 다른 문장이나 설명은 절대 추가하지 않는다.
 - 여러 행동이 떠오를 경우, 가장 먼저 떠오른 하나를 고른다.
+- 아무 생각이 떠오르지 않으면 /smallchat 행동을 선택한다.
 
 주의사항:
 - 행동 이름은 반드시 / 로 시작하는 소문자 단어로 출력한다.
 `
-			userPromptFmt := "다음은 사용자의 채팅 메시지야. 이 메시지를 분석해서 적절한 행동을 선택해줘:\n%s"
+			userPromptFmt := "다음은 사용자의 채팅 메시지. 이 메시지를 분석해서 적절한 행동을 선택해:\n%s"
 
 			s, _, err := genkit.GenerateData[Cmd](
 				ctx, g,
