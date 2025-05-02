@@ -1,0 +1,4 @@
+.gitignore
+genai_lotto645
+*.sh
+.config*.yaml
