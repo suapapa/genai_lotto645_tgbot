@@ -52,7 +52,7 @@ func NewLottoRAGAI(
 		return nil, fmt.Errorf("failed to initialize Genkit: %w", err)
 	}
 
-	vstore, err := NewWeaviateVectorStore()
+	vstore, err := NewWeaviateOllamaVectorStore()
 	if err != nil {
 		return nil, fmt.Errorf("failed to define indexer and retriever: %w", err)
 	}
