@@ -8,7 +8,7 @@ require (
 	github.com/mymmrac/telego v1.0.2
 	github.com/ollama/ollama v0.6.6
 	github.com/schollz/progressbar/v3 v3.18.0
-	github.com/suapapa/go_ragkit v0.1.3
+	github.com/suapapa/go_ragkit v0.2.3
 	github.com/weaviate/weaviate-go-client/v4 v4.16.1
 )
 

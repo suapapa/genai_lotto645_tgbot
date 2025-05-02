@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 
 	"github.com/firebase/genkit/go/ai"
@@ -53,11 +52,11 @@ func NewLottoRAGAI(
 		return nil, fmt.Errorf("failed to initialize Genkit: %w", err)
 	}
 
-	vectorizer, err := NewWeaviateVectorizer()
+	vstore, err := NewWeaviateVectorStore()
 	if err != nil {
 		return nil, fmt.Errorf("failed to define indexer and retriever: %w", err)
 	}
-	log.Println(vectorizer.String(), "initialized")
+	log.Println(vstore.String(), "initialized")
 
 	ret := &LottoRAGAI{}
 
@@ -74,7 +73,7 @@ func NewLottoRAGAI(
 			}
 			text := string(b)
 			textID := ragkit.GenerateID(text)
-			if exists, err := vectorizer.Exists(ctx, textID); err != nil {
+			if exists, err := vstore.Exists(ctx, textID); err != nil {
 				return nil, fmt.Errorf("failed to check if winning exists: %w", err)
 			} else if exists {
 				log.Println("winning already exists", textID)
@@ -92,7 +91,7 @@ func NewLottoRAGAI(
 					"second_count": w.SecondCount,
 				},
 			}
-			_, err = vectorizer.Index(ctx, doc)
+			_, err = vstore.Index(ctx, doc)
 			if err != nil {
 				return nil, fmt.Errorf("failed to index winning: %w", err)
 			}
@@ -108,13 +107,16 @@ func NewLottoRAGAI(
 			ret.mu.Lock()
 			defer ret.mu.Unlock()
 
-			// resp, err := ai.Retrieve(ctx, winHistoryRetriver, ai.WithTextDocs(retrievePrompt))
-			// if err != nil {
-			// 	return Lucky{}, fmt.Errorf("failed to retrive winning: %w", err)
-			// }
+			luckyNums := generateLottoNumbers(7)
 
-			log.Println("retrieving", retrievePrompt)
-			retrieves, err := vectorizer.RetrieveText(ctx, retrievePrompt, cnt+50)
+			b, err := json.Marshal(luckyNums)
+			if err != nil {
+				return Lucky{}, fmt.Errorf("failed to marshal luckyNums: %w", err)
+			}
+
+			log.Println("lucky numbers", luckyNums)
+			log.Printf("retrieving %d lucky numbers: %s", cnt+50, string(b))
+			retrieves, err := vstore.RetrieveText(ctx, string(b), cnt+50, "issue_no")
 			if err != nil {
 				return Lucky{}, fmt.Errorf("failed to retrieve winning: %w", err)
 			}
@@ -198,15 +200,4 @@ func NewLottoRAGAI(
 	ret.ChatbotFlow = chatbotFlow
 
 	return ret, nil
-}
-
-func toSchemaAndAddr(url string) (string, string) {
-	parts := strings.Split(url, "://")
-	if len(parts) != 2 {
-		return "", ""
-	}
-	schema := parts[0]
-	addr := parts[1]
-
-	return schema, addr
 }
